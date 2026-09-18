@@ -1,0 +1,4 @@
+# docx / pdf を扱う場合のみ必要。
+# テキスト・CSV・Markdown のマスクと GUI は標準ライブラリだけで動きます。
+python-docx>=1.0
+PyMuPDF>=1.23

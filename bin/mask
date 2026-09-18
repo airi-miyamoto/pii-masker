@@ -1,0 +1,18 @@
+#!/bin/sh
+# pii-masker 起動スクリプト（pip install せずに使う場合）。
+# 使う Python を固定したいときは PII_MASKER_PYTHON に指定してください。
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PY="${PII_MASKER_PYTHON:-}"
+if [ -z "$PY" ]; then
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      PY="$candidate"
+      break
+    fi
+  done
+fi
+if [ -z "$PY" ]; then
+  echo "python3 が見つかりません。Python 3.10 以上をインストールしてください。" >&2
+  exit 1
+fi
+PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" exec "$PY" -m pii_masker.cli "$@"

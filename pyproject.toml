@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pii-masker"
+version = "0.1.0"
+description = "AI にデータを渡す前に個人情報をプレースホルダへ置き換えるローカルツール"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Airi Miyamoto" }]
+keywords = ["pii", "masking", "anonymization", "japanese", "privacy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Natural Language :: Japanese",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: Text Processing",
+]
+# テキストのマスクと GUI は標準ライブラリだけで動く
+dependencies = []
+
+[project.optional-dependencies]
+# docx / pdf を扱う場合に必要
+files = ["python-docx>=1.0", "PyMuPDF>=1.23"]
+
+[project.scripts]
+mask = "pii_masker.cli:main"
+
+[tool.setuptools]
+packages = ["pii_masker"]
+
+[tool.setuptools.package-data]
+pii_masker = ["assets/*.html"]

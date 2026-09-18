@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>pii-masker</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --border: #dfe3e8; --text: #1c2024;
+    --muted: #6b7280; --accent: #2f6feb; --accent-weak: #e8f0fe;
+    --danger: #c0392b; --ok: #1f8a4c; --code-bg: #f2f4f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d; --panel: #1e2128; --border: #333844; --text: #e6e8eb;
+      --muted: #9aa1ab; --accent: #4d8bf5; --accent-weak: #23304a;
+      --danger: #e8705f; --ok: #56c07f; --code-bg: #262a33;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    font-size: 14px; line-height: 1.6;
+  }
+  header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    background: var(--panel); display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  nav { display: flex; gap: 4px; padding: 10px 20px 0; background: var(--panel); border-bottom: 1px solid var(--border); }
+  nav button {
+    border: 1px solid transparent; border-bottom: none; background: none; color: var(--muted);
+    padding: 8px 16px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 13.5px; font-family: inherit;
+  }
+  nav button.active { background: var(--bg); color: var(--text); border-color: var(--border); font-weight: 600; }
+  main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+  section { display: none; }
+  section.active { display: block; }
+  textarea {
+    width: 100%; min-height: 200px; padding: 12px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--panel); color: var(--text);
+    font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; resize: vertical;
+  }
+  select {
+    padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font-family: inherit; font-size: 13px;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 820px) { .row { grid-template-columns: 1fr; } }
+  label.field { display: block; font-size: 12.5px; color: var(--muted); margin: 0 0 6px; }
+  .actions { display: flex; gap: 8px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+  button.primary, button.ghost {
+    font-family: inherit; font-size: 13.5px; padding: 8px 18px; border-radius: 8px; cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); font-weight: 600; }
+  button.ghost { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+  button:disabled { opacity: .5; cursor: default; }
+  .status { font-size: 12.5px; color: var(--muted); }
+  .status.err { color: var(--danger); }
+  .status.ok { color: var(--ok); }
+  #drop {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 44px 20px; text-align: center;
+    color: var(--muted); background: var(--panel); cursor: pointer; transition: .15s;
+  }
+  #drop.over { border-color: var(--accent); background: var(--accent-weak); color: var(--text); }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  td.val { font-family: Menlo, monospace; word-break: break-all; }
+  .tag {
+    display: inline-block; background: var(--accent-weak); color: var(--accent);
+    border-radius: 5px; padding: 1px 8px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0 18px; }
+  .cats label { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+  .note {
+    background: var(--code-bg); border-left: 3px solid var(--accent); padding: 10px 14px;
+    border-radius: 0 6px 6px 0; font-size: 12.5px; color: var(--muted); margin: 14px 0;
+  }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+  a { color: var(--accent); }
+  .fileitem { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-top: 10px; background: var(--panel); }
+  .fileitem h4 { margin: 0 0 4px; font-size: 13.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>pii-masker</h1>
+  <span class="sub">個人情報をプレースホルダに置き換えます — 処理はすべて手元のマシンの中で完結します</span>
+</header>
+
+<nav>
+  <button data-tab="text" class="active">テキスト</button>
+  <button data-tab="file">ファイル</button>
+  <button data-tab="restore">復元</button>
+  <button data-tab="settings">設定</button>
+</nav>
+
+<main>
+  <section id="tab-text" class="active">
+    <div class="row">
+      <div>
+        <label class="field" for="src">元のテキスト</label>
+        <textarea id="src" placeholder="ここに貼り付けてください"></textarea>
+      </div>
+      <div>
+        <label class="field" for="dst">マスク後</label>
+        <textarea id="dst" readonly placeholder="結果がここに表示されます"></textarea>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="btn-mask">マスクする</button>
+      <button class="ghost" id="btn-copy">結果をコピー</button>
+      <button class="ghost" id="btn-clear">クリア</button>
+      <span class="status" id="text-status"></span>
+    </div>
+    <div id="text-hits"></div>
+  </section>
+
+  <section id="tab-file">
+    <div id="drop">
+      ファイルをここにドロップ<br>
+      <span style="font-size:12px">または クリックして選択 — txt / md / csv / json / html / docx / pdf</span>
+      <input type="file" id="picker" multiple hidden>
+    </div>
+    <div class="actions">
+      <span class="status" id="file-status"></span>
+    </div>
+    <div id="file-results"></div>
+  </section>
+
+  <section id="tab-restore">
+    <div class="note">
+      AI から返ってきた文章を貼り付けると、<code>[人名_1]</code> のようなプレースホルダを元の情報に戻します。
+    </div>
+    <label class="field" for="map-select">使用する対応表</label>
+    <select id="map-select" style="width:100%;margin-bottom:14px">
+      <option value="">保存済みの対応表をすべて使う</option>
+    </select>
+    <div class="row">
+      <div>
+        <label class="field" for="rsrc">マスクされたテキスト</label>
+        <textarea id="rsrc" placeholder="AI の回答を貼り付け"></textarea>
+      </div>
+      <div>
+        <label class="field" for="rdst">復元後</label>
+        <textarea id="rdst" readonly></textarea>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="btn-restore">復元する</button>
+      <button class="ghost" id="btn-rcopy">結果をコピー</button>
+      <span class="status" id="restore-status"></span>
+    </div>
+  </section>
+
+  <section id="tab-settings">
+    <label class="field">検出する項目</label>
+    <div class="cats" id="cats"></div>
+
+    <label class="field"><input type="checkbox" id="opt-alldates"> 生年月日ラベルの無い日付もすべてマスクする</label>
+    <label class="field"><input type="checkbox" id="opt-redact"> 復元不能な伏字（●●●）にする — 対応表を残しません</label>
+    <label class="field"><input type="checkbox" id="opt-urlfull"> URL を丸ごとマスクする（既定はドメインだけ隠してパスは残す）</label>
+    <label class="field"><input type="checkbox" id="opt-orgguess" checked> 法人格の無い社名も推測する（「さくら不動産」「山田建設」など）</label>
+    <div class="note">
+      既定では <code>https://example.co.jp/works/detail/</code> を
+      <code>https://[ドメイン_1]/works/detail/</code> に置き換えます。
+      ページのスラッグはそのまま共有できます。<code>?id=...</code> 以降の値は検査対象です。
+    </div>
+
+    <label class="field" style="margin-top:10px">PDF の扱い</label>
+    <select id="opt-pdfmode">
+      <option value="text">テキストを抽出して .txt で出力（既定）</option>
+      <option value="redact">レイアウトを保ったまま黒塗り PDF（復元不可）</option>
+    </select>
+
+    <label class="field" style="margin-top:18px">ユーザー辞書 — 1 行に 1 語。必ず隠したい固有名詞を書きます</label>
+    <textarea id="opt-terms" style="min-height:120px" placeholder="社内コードネーム"></textarea>
+    <div class="note">
+      辞書の内容はブラウザにもディスクにも保存しません（このページを閉じると消えます）。
+      常用する語は <code>~/.pii-masker/terms.txt</code> に書くと CLI と GUI の両方で使えます。
+    </div>
+
+    <label class="field" style="margin-top:18px">マスクしないドメイン — 1 行に 1 つ。自社ドメインや技術サイトを書きます</label>
+    <textarea id="opt-allow" style="min-height:90px" placeholder="example.co.jp&#10;-github.com"></textarea>
+    <div class="note">
+      MDN・GitHub・WordPress.org など主要な技術サイトは最初から除外されています。
+      先頭に <code>-</code> を付けるとその除外を解除できます。
+      常用する設定は <code>~/.pii-masker/allow-domains.txt</code> に書いてください。
+    </div>
+
+    <label class="field" style="margin-top:18px">対応表の管理</label>
+    <div class="actions">
+      <button class="ghost" id="btn-purge">保存済みの対応表をすべて削除</button>
+      <span class="status" id="settings-status"></span>
+    </div>
+    <div class="note">
+      対応表には元の個人情報が平文で入ります。保存先は <code>~/.pii-masker/mappings/</code>（パーミッション 600）です。
+      復元が済んだら削除してください。
+    </div>
+  </section>
+</main>
+
+<script>
+const TOKEN = "__TOKEN__";
+const CATEGORIES = __CATEGORIES__;
+
+const $ = (id) => document.getElementById(id);
+
+const api = async (path, body, isForm) => {
+  const opts = { method: "POST", headers: { "X-Token": TOKEN } };
+  if (isForm) {
+    opts.body = body;
+  } else {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+  return data;
+};
+
+const setStatus = (id, msg, kind) => {
+  const el = $(id);
+  el.textContent = msg;
+  el.className = "status" + (kind ? " " + kind : "");
+};
+
+document.querySelectorAll("nav button").forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll("nav button").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll("section").forEach((s) => s.classList.remove("active"));
+    btn.classList.add("active");
+    $("tab-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "restore") loadMappings();
+  };
+});
+
+const STORAGE_KEY = "pii-masker-categories";
+const savedCats = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+CATEGORIES.forEach((cat) => {
+  const label = document.createElement("label");
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.value = cat.key;
+  input.checked = savedCats ? savedCats.includes(cat.key) : true;
+  input.onchange = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(options().categories));
+  label.append(input, document.createTextNode(cat.label));
+  $("cats").append(label);
+});
+
+function options() {
+  return {
+    categories: [...$("cats").querySelectorAll("input:checked")].map((i) => i.value),
+    all_dates: $("opt-alldates").checked,
+    redact: $("opt-redact").checked,
+    url_full: $("opt-urlfull").checked,
+    org_guess: $("opt-orgguess").checked,
+    pdf_mode: $("opt-pdfmode").value,
+    terms: $("opt-terms").value,
+    allow_domains: $("opt-allow").value,
+  };
+}
+
+function summaryText(summary) {
+  const parts = Object.entries(summary || {}).map(([k, v]) => k + " " + v + "件");
+  return parts.length ? parts.join(" / ") : "検出なし";
+}
+
+function hitTable(hits) {
+  if (!hits || !hits.length) return null;
+  const table = document.createElement("table");
+  table.innerHTML = "<thead><tr><th>項目</th><th>元の値</th><th>置き換え後</th></tr></thead>";
+  const tbody = document.createElement("tbody");
+  const seen = new Set();
+  hits.forEach((hit) => {
+    const key = hit.display + " " + hit.value;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const tr = document.createElement("tr");
+    const td1 = document.createElement("td");
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = hit.display;
+    td1.append(tag);
+    const td2 = document.createElement("td");
+    td2.className = "val";
+    td2.textContent = hit.value;
+    const td3 = document.createElement("td");
+    td3.className = "val";
+    td3.textContent = hit.replacement;
+    tr.append(td1, td2, td3);
+    tbody.append(tr);
+  });
+  table.append(tbody);
+  return table;
+}
+
+$("btn-mask").onclick = async () => {
+  const text = $("src").value;
+  if (!text.trim()) { setStatus("text-status", "テキストを入力してください", "err"); return; }
+  setStatus("text-status", "処理中…");
+  try {
+    const data = await api("/api/mask", Object.assign({ text: text }, options()));
+    $("dst").value = data.text;
+    setStatus("text-status", summaryText(data.summary) + (data.mapping_path ? " / 対応表を保存しました" : ""), "ok");
+    $("text-hits").replaceChildren(hitTable(data.hits) || document.createTextNode(""));
+  } catch (e) {
+    setStatus("text-status", e.message, "err");
+  }
+};
+
+$("btn-copy").onclick = async () => {
+  if (!$("dst").value) return;
+  await navigator.clipboard.writeText($("dst").value);
+  setStatus("text-status", "コピーしました", "ok");
+};
+
+$("btn-clear").onclick = () => {
+  $("src").value = "";
+  $("dst").value = "";
+  $("text-hits").replaceChildren();
+  setStatus("text-status", "");
+};
+
+const drop = $("drop");
+drop.onclick = () => $("picker").click();
+$("picker").onchange = (e) => upload(e.target.files);
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => {
+  e.preventDefault();
+  drop.classList.add("over");
+}));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => {
+  e.preventDefault();
+  drop.classList.remove("over");
+}));
+drop.addEventListener("drop", (e) => upload(e.dataTransfer.files));
+
+async function upload(files) {
+  if (!files || !files.length) return;
+  const form = new FormData();
+  form.append("options", JSON.stringify(options()));
+  [...files].forEach((f) => form.append("files", f, f.name));
+  setStatus("file-status", files.length + " 件を処理中…");
+  $("file-results").replaceChildren();
+  try {
+    const data = await api("/api/upload", form, true);
+    setStatus("file-status", "完了", "ok");
+    data.files.forEach((f) => {
+      const box = document.createElement("div");
+      box.className = "fileitem";
+      const h = document.createElement("h4");
+      h.textContent = f.name;
+      box.append(h);
+      if (f.error) {
+        const p = document.createElement("div");
+        p.className = "status err";
+        p.textContent = f.error;
+        box.append(p);
+      } else {
+        const p = document.createElement("div");
+        p.className = "status";
+        p.textContent = summaryText(f.summary) + (f.note ? " — " + f.note : "");
+        const a = document.createElement("a");
+        a.href = "/api/download?id=" + f.download + "&token=" + encodeURIComponent(TOKEN);
+        a.textContent = "ダウンロード: " + f.output;
+        a.download = f.output;
+        a.style.display = "inline-block";
+        a.style.marginTop = "6px";
+        box.append(p, a);
+        const t = hitTable(f.hits);
+        if (t) box.append(t);
+      }
+      $("file-results").append(box);
+    });
+  } catch (e) {
+    setStatus("file-status", e.message, "err");
+  }
+}
+
+async function loadMappings() {
+  try {
+    const res = await fetch("/api/mappings", { headers: { "X-Token": TOKEN } });
+    const data = await res.json();
+    const sel = $("map-select");
+    sel.replaceChildren();
+    const first = document.createElement("option");
+    first.value = "";
+    first.textContent = "保存済みの対応表をすべて使う";
+    sel.append(first);
+    (data.mappings || []).forEach((m) => {
+      const opt = document.createElement("option");
+      opt.value = m.path;
+      opt.textContent = m.created_at + "  " + m.source + "  (" + m.count + "件)";
+      sel.append(opt);
+    });
+  } catch (e) {
+    // 一覧が取れなくても復元自体は可能
+  }
+}
+
+$("btn-restore").onclick = async () => {
+  const text = $("rsrc").value;
+  if (!text.trim()) { setStatus("restore-status", "テキストを入力してください", "err"); return; }
+  setStatus("restore-status", "処理中…");
+  try {
+    const data = await api("/api/restore", { text: text, mapping_path: $("map-select").value || null });
+    $("rdst").value = data.text;
+    let msg = data.count + " 箇所を復元しました";
+    const leftover = data.leftover || [];
+    if (leftover.length) msg += " / 対応表に無い項目が残っています: " + leftover.join(", ");
+    setStatus("restore-status", msg, leftover.length ? "err" : "ok");
+  } catch (e) {
+    setStatus("restore-status", e.message, "err");
+  }
+};
+
+$("btn-rcopy").onclick = async () => {
+  if (!$("rdst").value) return;
+  await navigator.clipboard.writeText($("rdst").value);
+  setStatus("restore-status", "コピーしました", "ok");
+};
+
+$("btn-purge").onclick = async () => {
+  try {
+    const data = await api("/api/purge", {});
+    setStatus("settings-status", data.removed + " 件削除しました", "ok");
+    loadMappings();
+  } catch (e) {
+    setStatus("settings-status", e.message, "err");
+  }
+};
+
+loadMappings();
+</script>
+</body>
+</html>
